@@ -10,6 +10,7 @@ from typing import Any
 
 import tiktoken
 
+import graphrag.config.defaults as defs
 from graphrag.index.typing import ErrorHandlerFn
 from graphrag.llm import CompletionLLM
 
@@ -80,7 +81,9 @@ class ClaimExtractor:
         self._input_resolved_entities_key = (
             input_resolved_entities_key or "resolved_entities"
         )
-        self._max_gleanings = max_gleanings if max_gleanings is not None else 0
+        self._max_gleanings = (
+            max_gleanings if max_gleanings is not None else defs.CLAIM_MAX_GLEANINGS
+        )
         self._on_error = on_error or (lambda _e, _s, _d: None)
 
         # Construct the looping arguments
@@ -174,12 +177,12 @@ class ClaimExtractor:
 
         # Repeat to ensure we maximize entity count
         for i in range(self._max_gleanings):
-            glean_response = await self._llm(
+            response = await self._llm(
                 CONTINUE_PROMPT,
                 name=f"extract-continuation-{i}",
-                history=response.history or [],
+                history=response.history,
             )
-            extension = glean_response.output or ""
+            extension = response.output or ""
             claims += record_delimiter + extension.strip().removesuffix(
                 completion_delimiter
             )
@@ -188,13 +191,13 @@ class ClaimExtractor:
             if i >= self._max_gleanings - 1:
                 break
 
-            continue_response = await self._llm(
+            response = await self._llm(
                 LOOP_PROMPT,
                 name=f"extract-loopcheck-{i}",
-                history=glean_response.history or [],
+                history=response.history,
                 model_parameters=self._loop_args,
             )
-            if continue_response.output != "YES":
+            if response.output != "YES":
                 break
 
         result = self._parse_claim_tuples(results, prompt_args)

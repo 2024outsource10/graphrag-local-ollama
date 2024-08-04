@@ -13,7 +13,7 @@ from typing import Any
 import pandas as pd
 import tiktoken
 
-from graphrag.index.utils.json import clean_up_json
+from graphrag.llm.openai.utils import try_parse_json_object
 from graphrag.query.context_builder.builders import GlobalContextBuilder
 from graphrag.query.context_builder.conversation_history import (
     ConversationHistory,
@@ -174,10 +174,12 @@ class GlobalSearch(BaseSearch):
         search_prompt = ""
         try:
             search_prompt = self.map_system_prompt.format(context_data=context_data)
-            search_messages = [
-                {"role": "system", "content": search_prompt},
-                {"role": "user", "content": query},
-            ]
+            # search_messages = [
+            #     {"role": "system", "content": search_prompt},
+            #     {"role": "user", "content": query},
+            # ]
+            # for ollama
+            search_messages = [ {"role": "user", "content": search_prompt + "\n\n### USER QUESTION ### \n\n" + query} ]
             async with self.semaphore:
                 search_response = await self.llm.agenerate(
                     messages=search_messages, streaming=False, **llm_kwargs
@@ -188,7 +190,6 @@ class GlobalSearch(BaseSearch):
                 processed_response = self.parse_search_response(search_response)
             except ValueError:
                 # Clean up and retry parse
-                search_response = clean_up_json(search_response)
                 try:
                     # parse search response json
                     processed_response = self.parse_search_response(search_response)
@@ -229,6 +230,10 @@ class GlobalSearch(BaseSearch):
         list[dict[str, Any]]
             A list of key points, each key point is a dictionary with "answer" and "score" keys
         """
+        search_response, _j = try_parse_json_object(search_response)
+        if _j == {}:
+            return [{"answer": "not avaliable", "score": 0}]
+
         parsed_elements = json.loads(search_response)["points"]
         return [
             {

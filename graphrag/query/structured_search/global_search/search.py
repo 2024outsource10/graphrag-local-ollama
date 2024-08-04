@@ -179,7 +179,9 @@ class GlobalSearch(BaseSearch):
             #     {"role": "user", "content": query},
             # ]
             # for ollama
-            search_messages = [ {"role": "user", "content": search_prompt + "\n\n### USER QUESTION ### \n\n" + query} ]
+            # search_messages = [ {"role": "user", "content": search_prompt + "\n\n### USER QUESTION ### \n\n" + query} ]
+            # for glm
+            search_messages = [ {"role": "user", "content": "<|system|>\n" + search_prompt + "\n<|user|>\n" + query} ]
             async with self.semaphore:
                 search_response = await self.llm.agenerate(
                     messages=search_messages, streaming=False, **llm_kwargs
